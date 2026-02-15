@@ -1,91 +1,116 @@
-let balance = 100;
-let invested = 0;
-let history = [];
+// Firebase Imports
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-let profitTimer;
-let countdownTimer;
-let timeLeft = 10;
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-function login() {
-  let user = document.getElementById("username").value;
-  let pass = document.getElementById("password").value;
 
-  if (user === "admin" && pass === "1234") {
-    document.getElementById("loginPage").style.display = "none";
-    document.getElementById("appPage").style.display = "block";
-  } else {
-    alert("Invalid login");
-  }
-}
+// 🔥 PASTE YOUR FIREBASE CONFIG BELOW (replace the example values)
+const firebaseConfig = {
+  apiKey: "PASTE_YOURS_HERE",
+  authDomain: "PASTE_YOURS_HERE",
+  projectId: "PASTE_YOURS_HERE",
+  storageBucket: "PASTE_YOURS_HERE",
+  messagingSenderId: "PASTE_YOURS_HERE",
+  appId: "PASTE_YOURS_HERE"
+};
 
-function logout() {
-  location.reload();
-}
 
-function updateUI() {
-  document.getElementById("balance").innerText = balance.toFixed(2);
-  document.getElementById("invested").innerText = invested.toFixed(2);
-  document.getElementById("countdown").innerText =
-    invested > 0 ? timeLeft + "s" : "--";
-  renderHistory();
-}
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-function startInvestment() {
-  if (invested > 0 || balance <= 0) return;
+let balance = 0;
+let currentUser = null;
 
-  invested = balance;
-  balance = 0;
-  timeLeft = 10;
-  updateUI();
 
-  countdownTimer = setInterval(() => {
-    timeLeft--;
-    if (timeLeft <= 0) timeLeft = 10;
-    updateUI();
-  }, 1000);
+// 🔐 REGISTER
+window.register = async function () {
+  const email = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
 
-  profitTimer = setInterval(() => {
-    let profit = invested * 0.05;
-    invested += profit;
+  try {
+    const userCred = await createUserWithEmailAndPassword(auth, email, password);
+    currentUser = userCred.user;
 
-    history.push({
-      time: new Date().toLocaleTimeString(),
-      profit: profit.toFixed(2)
+    await setDoc(doc(db, "users", currentUser.uid), {
+      balance: 100
     });
 
-    timeLeft = 10;
+    alert("Account created!");
+  } catch (error) {
+    alert(error.message);
+  }
+};
+
+
+// 🔐 LOGIN
+window.login = async function () {
+  const email = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+
+  try {
+    const userCred = await signInWithEmailAndPassword(auth, email, password);
+    currentUser = userCred.user;
+
+    const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+    balance = userDoc.data().balance;
+
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("appPage").style.display = "block";
+
     updateUI();
-  }, 10000);
-}
+  } catch (error) {
+    alert("Login failed: " + error.message);
+  }
+};
 
-function withdraw() {
-  clearInterval(profitTimer);
-  clearInterval(countdownTimer);
 
-  balance += invested;
-  invested = 0;
-  updateUI();
-}
+// 🚪 LOGOUT
+window.logout = async function () {
+  await signOut(auth);
+  location.reload();
+};
 
-function deposit() {
-  let amount = parseFloat(document.getElementById("depositAmount").value);
+
+// 💰 DEPOSIT
+window.deposit = async function () {
+  const amount = parseFloat(document.getElementById("depositAmount").value);
   if (!amount || amount <= 0) return;
 
   balance += amount;
+
+  await updateDoc(doc(db, "users", currentUser.uid), {
+    balance: balance
+  });
+
   document.getElementById("depositAmount").value = "";
   updateUI();
-}
+};
 
-function renderHistory() {
-  let table = document.getElementById("historyBody");
-  table.innerHTML = "";
 
-  history.slice().reverse().forEach(entry => {
-    table.innerHTML += `
-      <tr>
-        <td>${entry.time}</td>
-        <td>${entry.profit}</td>
-      </tr>
-    `;
-  });
+// 💸 WITHDRAW
+window.withdraw = async function () {
+  if (balance <= 0) return;
+
+  alert("Withdrawal request sent (demo mode)");
+};
+
+
+// 🖥 UPDATE UI
+function updateUI() {
+  document.getElementById("balance").innerText = balance.toFixed(2);
 }
